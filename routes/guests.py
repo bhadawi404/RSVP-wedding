@@ -82,31 +82,40 @@ def delete_guest(guest_id):
     db.session.commit()
     return jsonify({"message": "Guest deleted successfully"})
 
-# EXPORT guests ke Excel
+# =========================
+# Export Guests to Excel
+# =========================
 @guests_bp.route("/export", methods=["GET"])
 def export_guests():
-    guests = Guest.query.all()
-    data = [g.to_dict() for g in guests]
+    try:
+        guests = Guest.query.all()
+        data = [g.to_dict() for g in guests]
 
-    # Buat DataFrame dari list of dict
-    df = pd.DataFrame(data)
+        if not data:
+            return jsonify({"error": "No guests found"}), 404
 
-    # Simpan ke buffer memory sebagai Excel
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="Guests")
+        # Buat DataFrame dari list of dict
+        df = pd.DataFrame(data)
 
-    output.seek(0)
+        # Simpan ke buffer memory sebagai Excel
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            df.to_excel(writer, index=False, sheet_name="Guests")
 
-    return send_file(
-        output,
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        as_attachment=True,
-        download_name="guests.xlsx"
-    )
+        output.seek(0)
 
+        return send_file(
+            output,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name="guests.xlsx"
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-# IMPORT guests dari Excel
+# =========================
+# Import Guests from Excel
+# =========================
 @guests_bp.route("/import", methods=["POST"])
 def import_guests():
     if "file" not in request.files:
@@ -115,22 +124,26 @@ def import_guests():
     file = request.files["file"]
 
     try:
+        # Baca Excel ke DataFrame
         df = pd.read_excel(file)
 
         imported_count = 0
         for _, row in df.iterrows():
-            # Cek jika email sudah ada -> skip
-            if Guest.query.filter_by(email=row["email"]).first():
+            phone = str(row.get("phone", "")).strip()
+            if not phone:
+                continue  # skip jika phone kosong
+
+            # Check jika phone sudah ada
+            if Guest.query.filter_by(phone=phone).first():
                 continue
 
             guest = Guest(
-                first_name=row.get("firstName", ""),
-                last_name=row.get("lastName", ""),
-                email=row["email"],
-                phone=row.get("phone", ""),
-                category=row.get("category", "friends"),
-                notes=row.get("notes"),
-                rsvp_status=row.get("rsvpStatus", "pending"),
+                first_name=row.get("firstName", "") or "",
+                last_name=row.get("lastName", "") or "",
+                phone=phone,
+                category=row.get("category") or "Friends",
+                notes=row.get("notes") or "",
+                rsvp_status=row.get("rsvpStatus") or "pending",
                 pin=generate_pin(),
                 barcode=generate_barcode(),
             )
