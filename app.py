@@ -18,7 +18,7 @@ def create_app():
     db.init_app(app)
     migrate.init_app(app, db)
 
-    CORS(app, resources={r"/api/*": {"origins": "http://localhost:8081"}})
+    # CORS(app, resources={r"/api/*": {"origins": "http://localhost:8081"}})
     # Register blueprints
     app.register_blueprint(guests_bp, url_prefix="/api/guests")
     app.register_blueprint(checkin_bp, url_prefix="/api/checkin")
